@@ -7,14 +7,16 @@ import {
 const adminMap = L.map('admin-map').setView([16.8661, 96.1951], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(adminMap);
 
-// Markers တွေကို အမျိုးအစားအလိုက် သိမ်းဆည်းရန်
 let markers = { riders: {}, orders: {}, customers: {} };
 let firstLoad = true;
 
 // --- ၂။ Notification အသံဖိုင် ---
 const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// --- ၃။ Rider Live Monitoring ---
+// Tooltip (စာတန်းလေးတွေ) အတွက် Style သတ်မှတ်ချက်
+const tooltipStyle = { permanent: true, direction: 'top', className: 'marker-label' };
+
+// --- ၃။ Rider Live Monitoring & Phone Display ---
 onSnapshot(collection(db, "active_riders"), (snap) => {
     document.getElementById('rider-count').innerText = snap.size;
     snap.docChanges().forEach((change) => {
@@ -29,8 +31,10 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
                 iconSize: [35, 35]
             });
 
+            // Marker ဆောက်ပြီး ဖုန်းနံပါတ်ကို Tooltip အနေနဲ့ အမြဲပြထားမယ်
             markers.riders[id] = L.marker([data.lat, data.lng], { icon: riderIcon })
                 .addTo(adminMap)
+                .bindTooltip(`Rider: ${data.name}<br>📞 ${data.phone}`, { permanent: true, direction: 'bottom' })
                 .bindPopup(`
                     <div style="text-align:center;">
                         <b>🚴 Rider: ${data.name}</b><br>
@@ -44,9 +48,8 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
     });
 });
 
-// --- ၄။ Customer Live Monitoring (အသစ်ထည့်သွင်းချက်) ---
+// --- ၄။ Customer Live Monitoring & Phone Display ---
 onSnapshot(collection(db, "customers"), (snap) => {
-    // HTML ထဲက customer-count နေရာမှာ ဂဏန်းတင်ရန်
     if(document.getElementById('customer-count')) {
         document.getElementById('customer-count').innerText = snap.size;
     }
@@ -59,12 +62,13 @@ onSnapshot(collection(db, "customers"), (snap) => {
             if (markers.customers[id]) adminMap.removeLayer(markers.customers[id]);
             
             const customerIcon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png', // Customer Icon
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png',
                 iconSize: [30, 30]
             });
 
             markers.customers[id] = L.marker([data.lat, data.lng], { icon: customerIcon })
                 .addTo(adminMap)
+                .bindTooltip(`User: ${data.phone}`, { permanent: true, direction: 'top' })
                 .bindPopup(`
                     <div style="text-align:center;">
                         <b>👤 Customer: ${data.name || 'အမည်မသိ'}</b><br>
@@ -95,27 +99,32 @@ onSnapshot(orderQuery, (snap) => {
     }
     firstLoad = false;
 
-    // Order Marker အဟောင်းများရှင်းရန်
     Object.values(markers.orders).forEach(m => adminMap.removeLayer(m));
     markers.orders = {};
 
     snap.forEach((orderDoc) => {
         const order = orderDoc.data();
-        const id = orderDoc.id;
+        const orderId = orderDoc.id;
         const pLoc = [order.pickup.lat, order.pickup.lng];
         const dLoc = [order.dropoff.lat, order.dropoff.lng];
 
-        const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 }).bindPopup(`
-            <b>📦 ပစ္စည်း: ${order.item}</b><br>
-            👤 Customer: ${order.customerName}<br>
-            💰 Delivery: ${order.deliveryFee} KS<br><br>
-            <button onclick="cancelOrder('${id}')" style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%;">❌ Cancel Order</button>
-        `);
+        const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 })
+            .bindTooltip(`📦 ${order.item}<br>📞 ${order.customerPhone || ''}`, { permanent: false })
+            .bindPopup(`
+                <div style="line-height: 1.6;">
+                    <b>📦 ပစ္စည်း: ${order.item}</b><br>
+                    👤 Customer: ${order.customerName}<br>
+                    📞 ဖုန်း: <a href="tel:${order.customerPhone}">${order.customerPhone}</a><br>
+                    💰 Delivery: ${order.deliveryFee} KS<br>
+                    <hr>
+                    <button onclick="cancelOrder('${orderId}')" style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%;">❌ Cancel Order</button>
+                </div>
+            `);
 
         const dMarker = L.circleMarker(dLoc, { color: 'red', radius: 8 });
         const line = L.polyline([pLoc, dLoc], { color: 'orange', weight: 2, dashArray: '5, 10' });
 
-        markers.orders[id] = L.layerGroup([pMarker, dMarker, line]).addTo(adminMap);
+        markers.orders[orderId] = L.layerGroup([pMarker, dMarker, line]).addTo(adminMap);
     });
 });
 
@@ -140,4 +149,3 @@ window.cancelOrder = async (orderId) => {
         }
     }
 };
-
