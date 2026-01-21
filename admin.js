@@ -7,13 +7,14 @@ import {
 const adminMap = L.map('admin-map').setView([16.8661, 96.1951], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(adminMap);
 
-let markers = { riders: {}, orders: {} };
+// Markers တွေကို အမျိုးအစားအလိုက် သိမ်းဆည်းရန်
+let markers = { riders: {}, orders: {}, customers: {} };
 let firstLoad = true;
 
-// --- ၂။ Notification အသံဖိုင် (အော်ဒါအသစ်တက်ရင် အသံမြည်ရန်) ---
+// --- ၂။ Notification အသံဖိုင် ---
 const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// --- ၃။ Rider Live Monitoring & Details ---
+// --- ၃။ Rider Live Monitoring ---
 onSnapshot(collection(db, "active_riders"), (snap) => {
     document.getElementById('rider-count').innerText = snap.size;
     snap.docChanges().forEach((change) => {
@@ -37,16 +38,50 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
                         <small>Status: ${data.isOnline ? '🟢 Online' : '🔴 Offline'}</small>
                     </div>
                 `);
+        } else if (change.type === "removed") {
+            if (markers.riders[id]) adminMap.removeLayer(markers.riders[id]);
         }
     });
 });
 
-// --- ၄။ Order Monitoring & Cancellation ---
+// --- ၄။ Customer Live Monitoring (အသစ်ထည့်သွင်းချက်) ---
+onSnapshot(collection(db, "customers"), (snap) => {
+    // HTML ထဲက customer-count နေရာမှာ ဂဏန်းတင်ရန်
+    if(document.getElementById('customer-count')) {
+        document.getElementById('customer-count').innerText = snap.size;
+    }
+    
+    snap.docChanges().forEach((change) => {
+        const data = change.doc.data();
+        const id = change.doc.id;
+
+        if (change.type === "added" || change.type === "modified") {
+            if (markers.customers[id]) adminMap.removeLayer(markers.customers[id]);
+            
+            const customerIcon = L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png', // Customer Icon
+                iconSize: [30, 30]
+            });
+
+            markers.customers[id] = L.marker([data.lat, data.lng], { icon: customerIcon })
+                .addTo(adminMap)
+                .bindPopup(`
+                    <div style="text-align:center;">
+                        <b>👤 Customer: ${data.name || 'အမည်မသိ'}</b><br>
+                        📞 <a href="tel:${data.phone}">${data.phone || 'ဖုန်းမရှိပါ'}</a>
+                    </div>
+                `);
+        } else if (change.type === "removed") {
+            if (markers.customers[id]) adminMap.removeLayer(markers.customers[id]);
+        }
+    });
+});
+
+// --- ၅။ Order Monitoring & Cancellation ---
 const orderQuery = query(collection(db, "orders"), where("status", "!=", "completed"));
 onSnapshot(orderQuery, (snap) => {
     document.getElementById('order-count').innerText = snap.size;
 
-    // အော်ဒါအသစ်တက်လာရင် Notification ပြပြီး အသံမြည်ရန်
     if (!firstLoad && snap.docChanges().some(c => c.type === "added")) {
         alertSound.play();
         Swal.fire({
@@ -60,7 +95,7 @@ onSnapshot(orderQuery, (snap) => {
     }
     firstLoad = false;
 
-    // Marker အဟောင်းများရှင်းရန်
+    // Order Marker အဟောင်းများရှင်းရန်
     Object.values(markers.orders).forEach(m => adminMap.removeLayer(m));
     markers.orders = {};
 
@@ -73,8 +108,8 @@ onSnapshot(orderQuery, (snap) => {
         const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 }).bindPopup(`
             <b>📦 ပစ္စည်း: ${order.item}</b><br>
             👤 Customer: ${order.customerName}<br>
-            💰 တန်ဖိုး: ${order.deliveryFee} KS<br><br>
-            <button onclick="cancelOrder('${id}')" style="background:#ff4757; color:white; border:none; padding:5px; border-radius:5px; cursor:pointer;">❌ Cancel Order</button>
+            💰 Delivery: ${order.deliveryFee} KS<br><br>
+            <button onclick="cancelOrder('${id}')" style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%;">❌ Cancel Order</button>
         `);
 
         const dMarker = L.circleMarker(dLoc, { color: 'red', radius: 8 });
@@ -84,7 +119,7 @@ onSnapshot(orderQuery, (snap) => {
     });
 });
 
-// --- ၅။ Cancel Order Function (Global ဖြစ်အောင် window ထဲထည့်ပါ) ---
+// --- ၆။ Global Cancel Function ---
 window.cancelOrder = async (orderId) => {
     const { isConfirmed } = await Swal.fire({
         title: 'အော်ဒါကို ပယ်ဖျက်မှာလား?',
