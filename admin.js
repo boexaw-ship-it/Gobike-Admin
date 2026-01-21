@@ -13,10 +13,7 @@ let firstLoad = true;
 // --- ၂။ Notification အသံဖိုင် ---
 const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// Tooltip (စာတန်းလေးတွေ) အတွက် Style သတ်မှတ်ချက်
-const tooltipStyle = { permanent: true, direction: 'top', className: 'marker-label' };
-
-// --- ၃။ Rider Live Monitoring & Phone Display ---
+// --- ၃။ Rider Live Monitoring (Phone Bug Fixed) ---
 onSnapshot(collection(db, "active_riders"), (snap) => {
     document.getElementById('rider-count').innerText = snap.size;
     snap.docChanges().forEach((change) => {
@@ -26,19 +23,21 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
         if (change.type === "added" || change.type === "modified") {
             if (markers.riders[id]) adminMap.removeLayer(markers.riders[id]);
             
+            // Database ထဲက phone ကို သေချာဆွဲထုတ်ခြင်း
+            const riderPhone = data.phone || "N/A";
+
             const riderIcon = L.icon({
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/3198/3198336.png',
                 iconSize: [35, 35]
             });
 
-            // Marker ဆောက်ပြီး ဖုန်းနံပါတ်ကို Tooltip အနေနဲ့ အမြဲပြထားမယ်
             markers.riders[id] = L.marker([data.lat, data.lng], { icon: riderIcon })
                 .addTo(adminMap)
-                .bindTooltip(`Rider: ${data.name}<br>📞 ${data.phone}`, { permanent: true, direction: 'bottom' })
+                .bindTooltip(`Rider: ${data.name}<br>📞 ${riderPhone}`, { permanent: true, direction: 'bottom' })
                 .bindPopup(`
                     <div style="text-align:center;">
                         <b>🚴 Rider: ${data.name}</b><br>
-                        📞 <a href="tel:${data.phone}">${data.phone}</a><br>
+                        📞 <a href="tel:${riderPhone}">${riderPhone}</a><br>
                         <small>Status: ${data.isOnline ? '🟢 Online' : '🔴 Offline'}</small>
                     </div>
                 `);
@@ -48,7 +47,7 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
     });
 });
 
-// --- ၄။ Customer Live Monitoring & Phone Display ---
+// --- ၄။ Customer Live Monitoring (Phone Bug Fixed) ---
 onSnapshot(collection(db, "customers"), (snap) => {
     if(document.getElementById('customer-count')) {
         document.getElementById('customer-count').innerText = snap.size;
@@ -61,6 +60,9 @@ onSnapshot(collection(db, "customers"), (snap) => {
         if (change.type === "added" || change.type === "modified") {
             if (markers.customers[id]) adminMap.removeLayer(markers.customers[id]);
             
+            // Customer ဖုန်းနံပါတ်ကို သေချာဆွဲထုတ်ခြင်း
+            const customerPhone = data.phone || "N/A";
+
             const customerIcon = L.icon({
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png',
                 iconSize: [30, 30]
@@ -68,11 +70,11 @@ onSnapshot(collection(db, "customers"), (snap) => {
 
             markers.customers[id] = L.marker([data.lat, data.lng], { icon: customerIcon })
                 .addTo(adminMap)
-                .bindTooltip(`User: ${data.phone}`, { permanent: true, direction: 'top' })
+                .bindTooltip(`User: ${customerPhone}`, { permanent: true, direction: 'top' })
                 .bindPopup(`
                     <div style="text-align:center;">
                         <b>👤 Customer: ${data.name || 'အမည်မသိ'}</b><br>
-                        📞 <a href="tel:${data.phone}">${data.phone || 'ဖုန်းမရှိပါ'}</a>
+                        📞 <a href="tel:${customerPhone}">${customerPhone}</a>
                     </div>
                 `);
         } else if (change.type === "removed") {
@@ -105,16 +107,17 @@ onSnapshot(orderQuery, (snap) => {
     snap.forEach((orderDoc) => {
         const order = orderDoc.data();
         const orderId = orderDoc.id;
+        const oPhone = order.customerPhone || order.phone || "N/A";
         const pLoc = [order.pickup.lat, order.pickup.lng];
         const dLoc = [order.dropoff.lat, order.dropoff.lng];
 
         const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 })
-            .bindTooltip(`📦 ${order.item}<br>📞 ${order.customerPhone || ''}`, { permanent: false })
+            .bindTooltip(`📦 ${order.item}<br>📞 ${oPhone}`, { permanent: false })
             .bindPopup(`
                 <div style="line-height: 1.6;">
                     <b>📦 ပစ္စည်း: ${order.item}</b><br>
                     👤 Customer: ${order.customerName}<br>
-                    📞 ဖုန်း: <a href="tel:${order.customerPhone}">${order.customerPhone}</a><br>
+                    📞 ဖုန်း: <a href="tel:${oPhone}">${oPhone}</a><br>
                     💰 Delivery: ${order.deliveryFee} KS<br>
                     <hr>
                     <button onclick="cancelOrder('${orderId}')" style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%;">❌ Cancel Order</button>
@@ -149,3 +152,4 @@ window.cancelOrder = async (orderId) => {
         }
     }
 };
+
