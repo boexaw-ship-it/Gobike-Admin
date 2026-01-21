@@ -13,7 +13,7 @@ let firstLoad = true;
 // --- ၂။ Notification အသံဖိုင် ---
 const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// --- ၃။ Rider Live Monitoring (Phone Bug Fixed) ---
+// --- ၃။ Rider Live Monitoring (Board ဖြုတ်ပြီး Popup သာသုံးသည်) ---
 onSnapshot(collection(db, "active_riders"), (snap) => {
     document.getElementById('rider-count').innerText = snap.size;
     snap.docChanges().forEach((change) => {
@@ -23,21 +23,22 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
         if (change.type === "added" || change.type === "modified") {
             if (markers.riders[id]) adminMap.removeLayer(markers.riders[id]);
             
-            // Database ထဲက phone ကို သေချာဆွဲထုတ်ခြင်း
-            const riderPhone = data.phone || "N/A";
+            const rPhone = data.phone || "No Number"; 
+            const rName = data.name || "Unknown Rider";
 
             const riderIcon = L.icon({
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/3198/3198336.png',
                 iconSize: [35, 35]
             });
 
+            // bindTooltip (Board) ကို ဖြုတ်လိုက်ပြီး bindPopup တစ်ခုတည်းကိုသာ သုံးထားပါသည်
             markers.riders[id] = L.marker([data.lat, data.lng], { icon: riderIcon })
                 .addTo(adminMap)
-                .bindTooltip(`Rider: ${data.name}<br>📞 ${riderPhone}`, { permanent: true, direction: 'bottom' })
                 .bindPopup(`
-                    <div style="text-align:center;">
-                        <b>🚴 Rider: ${data.name}</b><br>
-                        📞 <a href="tel:${riderPhone}">${riderPhone}</a><br>
+                    <div style="text-align:center; min-width: 120px;">
+                        <h4 style="margin:0; color:#4e342e;">🚴 ${rName}</h4>
+                        <p style="margin: 5px 0;">📞 <a href="tel:${rPhone}" style="color:#1e90ff; font-weight:bold; text-decoration:none;">${rPhone}</a></p>
+                        <hr style="margin:5px 0; border:0; border-top:1px solid #eee;">
                         <small>Status: ${data.isOnline ? '🟢 Online' : '🔴 Offline'}</small>
                     </div>
                 `);
@@ -47,7 +48,7 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
     });
 });
 
-// --- ၄။ Customer Live Monitoring (Phone Bug Fixed) ---
+// --- ၄။ Customer Live Monitoring (Clean View) ---
 onSnapshot(collection(db, "customers"), (snap) => {
     if(document.getElementById('customer-count')) {
         document.getElementById('customer-count').innerText = snap.size;
@@ -60,8 +61,7 @@ onSnapshot(collection(db, "customers"), (snap) => {
         if (change.type === "added" || change.type === "modified") {
             if (markers.customers[id]) adminMap.removeLayer(markers.customers[id]);
             
-            // Customer ဖုန်းနံပါတ်ကို သေချာဆွဲထုတ်ခြင်း
-            const customerPhone = data.phone || "N/A";
+            const cPhone = data.phone || "No Number";
 
             const customerIcon = L.icon({
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png',
@@ -70,11 +70,10 @@ onSnapshot(collection(db, "customers"), (snap) => {
 
             markers.customers[id] = L.marker([data.lat, data.lng], { icon: customerIcon })
                 .addTo(adminMap)
-                .bindTooltip(`User: ${customerPhone}`, { permanent: true, direction: 'top' })
                 .bindPopup(`
                     <div style="text-align:center;">
-                        <b>👤 Customer: ${data.name || 'အမည်မသိ'}</b><br>
-                        📞 <a href="tel:${customerPhone}">${customerPhone}</a>
+                        <b style="color:#222;">👤 ${data.name || 'User'}</b><br>
+                        📞 <a href="tel:${cPhone}" style="text-decoration:none;">${cPhone}</a>
                     </div>
                 `);
         } else if (change.type === "removed") {
@@ -83,21 +82,13 @@ onSnapshot(collection(db, "customers"), (snap) => {
     });
 });
 
-// --- ၅။ Order Monitoring & Cancellation ---
+// --- ၅။ Order Monitoring & Cancellation (အရင်အတိုင်း) ---
 const orderQuery = query(collection(db, "orders"), where("status", "!=", "completed"));
 onSnapshot(orderQuery, (snap) => {
     document.getElementById('order-count').innerText = snap.size;
 
     if (!firstLoad && snap.docChanges().some(c => c.type === "added")) {
         alertSound.play();
-        Swal.fire({
-            title: '🔔 Order အသစ်တက်လာပါပြီ!',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000,
-            icon: 'info'
-        });
     }
     firstLoad = false;
 
@@ -107,12 +98,11 @@ onSnapshot(orderQuery, (snap) => {
     snap.forEach((orderDoc) => {
         const order = orderDoc.data();
         const orderId = orderDoc.id;
-        const oPhone = order.customerPhone || order.phone || "N/A";
+        const oPhone = order.customerPhone || order.phone || "No Number";
         const pLoc = [order.pickup.lat, order.pickup.lng];
         const dLoc = [order.dropoff.lat, order.dropoff.lng];
 
         const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 })
-            .bindTooltip(`📦 ${order.item}<br>📞 ${oPhone}`, { permanent: false })
             .bindPopup(`
                 <div style="line-height: 1.6;">
                     <b>📦 ပစ္စည်း: ${order.item}</b><br>
@@ -135,12 +125,10 @@ onSnapshot(orderQuery, (snap) => {
 window.cancelOrder = async (orderId) => {
     const { isConfirmed } = await Swal.fire({
         title: 'အော်ဒါကို ပယ်ဖျက်မှာလား?',
-        text: "ဤလုပ်ဆောင်ချက်ကို ပြန်ပြင်၍မရပါ!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
-        confirmButtonText: 'ပယ်ဖျက်မည်',
-        cancelButtonText: 'မလုပ်တော့ပါ'
+        confirmButtonText: 'ပယ်ဖျက်မည်'
     });
 
     if (isConfirmed) {
@@ -148,7 +136,7 @@ window.cancelOrder = async (orderId) => {
             await deleteDoc(doc(db, "orders", orderId));
             Swal.fire('Deleted!', 'အော်ဒါကို ပယ်ဖျက်ပြီးပါပြီ။', 'success');
         } catch (error) {
-            Swal.fire('Error', 'ပယ်ဖျက်၍မရပါ- ' + error.message, 'error');
+            Swal.fire('Error', error.message, 'error');
         }
     }
 };
