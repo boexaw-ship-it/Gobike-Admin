@@ -9,12 +9,10 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(adminMap
 
 let markers = { riders: {}, orders: {}, customers: {} };
 let firstLoad = true;
-
-// --- ၂။ Notification အသံဖိုင် ---
 const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// --- ၃။ Rider Live Monitoring (Board ဖြုတ်ပြီး Popup သာသုံးသည်) ---
-onSnapshot(collection(db, "active_riders"), (snap) => {
+// --- ၂။ Rider Monitoring (Collection: riders) ---
+onSnapshot(collection(db, "riders"), (snap) => {
     document.getElementById('rider-count').innerText = snap.size;
     snap.docChanges().forEach((change) => {
         const data = change.doc.data();
@@ -24,16 +22,16 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
             if (markers.riders[id]) adminMap.removeLayer(markers.riders[id]);
             
             const rPhone = data.phone || "No Number"; 
-            const rName = data.name || "Unknown Rider";
+            const rName = data.name || "Unknown";
 
             const riderIcon = L.icon({
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/3198/3198336.png',
                 iconSize: [35, 35]
             });
 
-            // bindTooltip (Board) ကို ဖြုတ်လိုက်ပြီး bindPopup တစ်ခုတည်းကိုသာ သုံးထားပါသည်
             markers.riders[id] = L.marker([data.lat, data.lng], { icon: riderIcon })
                 .addTo(adminMap)
+                .bindTooltip(`${rName}`, { permanent: true, direction: 'top', className: 'rider-label' }) // နာမည်ကို ထိပ်မှာ စာသားလေးနဲ့ပြရန်
                 .bindPopup(`
                     <div style="text-align:center; min-width: 120px;">
                         <h4 style="margin:0; color:#4e342e;">🚴 ${rName}</h4>
@@ -48,7 +46,7 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
     });
 });
 
-// --- ၄။ Customer Live Monitoring (Clean View) ---
+// --- ၃။ Customer Monitoring (Collection: customers) ---
 onSnapshot(collection(db, "customers"), (snap) => {
     if(document.getElementById('customer-count')) {
         document.getElementById('customer-count').innerText = snap.size;
@@ -82,11 +80,10 @@ onSnapshot(collection(db, "customers"), (snap) => {
     });
 });
 
-// --- ၅။ Order Monitoring & Cancellation (အရင်အတိုင်း) ---
+// --- ၄။ Order Monitoring & Cancellation ---
 const orderQuery = query(collection(db, "orders"), where("status", "!=", "completed"));
 onSnapshot(orderQuery, (snap) => {
     document.getElementById('order-count').innerText = snap.size;
-
     if (!firstLoad && snap.docChanges().some(c => c.type === "added")) {
         alertSound.play();
     }
@@ -116,12 +113,11 @@ onSnapshot(orderQuery, (snap) => {
 
         const dMarker = L.circleMarker(dLoc, { color: 'red', radius: 8 });
         const line = L.polyline([pLoc, dLoc], { color: 'orange', weight: 2, dashArray: '5, 10' });
-
         markers.orders[orderId] = L.layerGroup([pMarker, dMarker, line]).addTo(adminMap);
     });
 });
 
-// --- ၆။ Global Cancel Function ---
+// --- ၅။ Global Cancel Function ---
 window.cancelOrder = async (orderId) => {
     const { isConfirmed } = await Swal.fire({
         title: 'အော်ဒါကို ပယ်ဖျက်မှာလား?',
