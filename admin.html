@@ -7,9 +7,15 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Pyidaungsu:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-bootstrap-4/bootstrap-4.css">
     
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pyidaungsu', sans-serif; }
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            font-family: 'Pyidaungsu', sans-serif; 
+        }
         
         #admin-map {
             height: 100vh;
@@ -17,6 +23,7 @@
             z-index: 1;
         }
 
+        /* အပေါ်က Header Panel */
         .header {
             position: absolute;
             top: 20px;
@@ -24,63 +31,98 @@
             transform: translateX(-50%);
             z-index: 1000;
             background: rgba(255, 255, 255, 0.9);
-            padding: 10px 20px;
+            padding: 10px 25px;
             border-radius: 30px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             text-align: center;
-            min-width: 300px;
+            min-width: 320px;
+            border: 2px solid #4e342e;
         }
 
+        /* ညာဘက်အောက်က စာရင်း Panel */
         .stats-panel {
             position: absolute;
             bottom: 30px;
             right: 20px;
             z-index: 1000;
             background: white;
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            min-width: 200px;
         }
 
         .stat-item {
-            font-size: 0.9rem;
-            margin: 5px 0;
+            font-size: 1rem;
+            margin: 10px 0;
             font-weight: bold;
+            display: flex;
+            justify-content: space-between;
         }
 
+        /* ဘယ်ဘက်အောက်က အရောင်အညွှန်း (Legend) */
         .legend {
             position: absolute;
             bottom: 30px;
             left: 20px;
             z-index: 1000;
             background: white;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 0.8rem;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
-        .legend-item { display: flex; align-items: center; margin-bottom: 5px; }
-        .dot { height: 10px; width: 10px; border-radius: 50%; margin-right: 8px; }
+        .legend-item { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 8px; 
+        }
+        
+        .dot { 
+            height: 12px; 
+            width: 12px; 
+            border-radius: 50%; 
+            margin-right: 10px; 
+            display: inline-block;
+        }
+
+        /* Marker Popup ထဲက ခလုတ်အတွက် Style */
+        .leaflet-popup-content button {
+            font-family: 'Pyidaungsu', sans-serif;
+            margin-top: 10px;
+            width: 100%;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h2 style="color: #4e342e;">🚴 GoBike Admin Live</h2>
-        <p style="font-size: 0.8rem; color: #666;">စနစ်တစ်ခုလုံးကို အချိန်နှင့်တပြေးညီ စောင့်ကြည့်နေသည်</p>
+        <h2 style="color: #4e342e;">🚴 GoBike Admin Panel</h2>
+        <p style="font-size: 0.8rem; color: #666; font-weight: bold;">အချိန်နှင့်တပြေးညီ စောင့်ကြည့်မှုစနစ်</p>
     </div>
 
     <div id="admin-map"></div>
 
     <div class="stats-panel">
-        <div class="stat-item">🚴 Online Riders: <span id="rider-count" style="color: green;">0</span></div>
-        <div class="stat-item">📦 Active Orders: <span id="order-count" style="color: blue;">0</span></div>
+        <div class="stat-item">
+            <span>🚴 Online Riders:</span>
+            <span id="rider-count" style="color: #2ed573; margin-left: 10px;">0</span>
+        </div>
+        <div class="stat-item">
+            <span>📦 Active Orders:</span>
+            <span id="order-count" style="color: #1e90ff; margin-left: 10px;">0</span>
+        </div>
     </div>
 
     <div class="legend">
-        <div class="legend-item"><span class="dot" style="background: blue;"></span> Pickup Point</div>
-        <div class="legend-item"><span class="dot" style="background: red;"></span> Dropoff Point</div>
-        <div class="legend-item"><span class="dot" style="background: green;"></span> Rider (Motorbike)</div>
+        <div class="legend-item"><span class="dot" style="background: blue;"></span> ယူရန်နေရာ (Pickup)</div>
+        <div class="legend-item"><span class="dot" style="background: red;"></span> ပို့ရန်နေရာ (Dropoff)</div>
+        <div class="legend-item"><span class="dot" style="background: orange; border-radius: 0; height: 3px; width: 15px;"></span> ပစ္စည်းသွားပို့မည့်လမ်းကြောင်း</div>
+        <div class="legend-item">
+            <img src="https://cdn-icons-png.flaticon.com/512/3198/3198336.png" width="15" style="margin-right: 10px;"> Rider တည်နေရာ
+        </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -90,4 +132,3 @@
 
 </body>
 </html>
-
