@@ -13,16 +13,21 @@ const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2
 
 // --- ၂။ Rider Monitoring (Collection: riders) ---
 onSnapshot(collection(db, "riders"), (snap) => {
-    document.getElementById('rider-count').innerText = snap.size;
+    // HTML ထဲက rider-count နေရာမှာ ဂဏန်းပြရန်
+    if(document.getElementById('rider-count')) {
+        document.getElementById('rider-count').innerText = snap.size;
+    }
+    
     snap.docChanges().forEach((change) => {
         const data = change.doc.data();
         const id = change.doc.id;
 
         if (change.type === "added" || change.type === "modified") {
+            // အဟောင်းရှိရင် ဖျက်ပြီး အသစ်ပြန်တင်မယ်
             if (markers.riders[id]) adminMap.removeLayer(markers.riders[id]);
             
             const rPhone = data.phone || "No Number"; 
-            const rName = data.name || "Unknown";
+            const rName = data.name || "Rider";
 
             const riderIcon = L.icon({
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/3198/3198336.png',
@@ -31,12 +36,11 @@ onSnapshot(collection(db, "riders"), (snap) => {
 
             markers.riders[id] = L.marker([data.lat, data.lng], { icon: riderIcon })
                 .addTo(adminMap)
-                .bindTooltip(`${rName}`, { permanent: true, direction: 'top', className: 'rider-label' }) // နာမည်ကို ထိပ်မှာ စာသားလေးနဲ့ပြရန်
+                .bindTooltip(`${rName}`, { permanent: true, direction: 'top' }) // နာမည်လေး အမြဲပေါ်နေအောင်
                 .bindPopup(`
-                    <div style="text-align:center; min-width: 120px;">
-                        <h4 style="margin:0; color:#4e342e;">🚴 ${rName}</h4>
-                        <p style="margin: 5px 0;">📞 <a href="tel:${rPhone}" style="color:#1e90ff; font-weight:bold; text-decoration:none;">${rPhone}</a></p>
-                        <hr style="margin:5px 0; border:0; border-top:1px solid #eee;">
+                    <div style="text-align:center;">
+                        <b>🚴 Rider: ${rName}</b><br>
+                        📞 <a href="tel:${rPhone}">${rPhone}</a><br>
                         <small>Status: ${data.isOnline ? '🟢 Online' : '🔴 Offline'}</small>
                     </div>
                 `);
@@ -44,7 +48,7 @@ onSnapshot(collection(db, "riders"), (snap) => {
             if (markers.riders[id]) adminMap.removeLayer(markers.riders[id]);
         }
     });
-});
+}, (error) => { console.error("Rider Error:", error); });
 
 // --- ၃။ Customer Monitoring (Collection: customers) ---
 onSnapshot(collection(db, "customers"), (snap) => {
@@ -70,17 +74,17 @@ onSnapshot(collection(db, "customers"), (snap) => {
                 .addTo(adminMap)
                 .bindPopup(`
                     <div style="text-align:center;">
-                        <b style="color:#222;">👤 ${data.name || 'User'}</b><br>
-                        📞 <a href="tel:${cPhone}" style="text-decoration:none;">${cPhone}</a>
+                        <b>👤 Customer: ${data.name || 'User'}</b><br>
+                        📞 <a href="tel:${cPhone}">${cPhone}</a>
                     </div>
                 `);
         } else if (change.type === "removed") {
             if (markers.customers[id]) adminMap.removeLayer(markers.customers[id]);
         }
     });
-});
+}, (error) => { console.error("Customer Error:", error); });
 
-// --- ၄။ Order Monitoring & Cancellation ---
+// --- ၄။ Order Monitoring ---
 const orderQuery = query(collection(db, "orders"), where("status", "!=", "completed"));
 onSnapshot(orderQuery, (snap) => {
     document.getElementById('order-count').innerText = snap.size;
@@ -89,6 +93,7 @@ onSnapshot(orderQuery, (snap) => {
     }
     firstLoad = false;
 
+    // Order Marker အဟောင်းများရှင်းရန်
     Object.values(markers.orders).forEach(m => adminMap.removeLayer(m));
     markers.orders = {};
 
@@ -99,17 +104,16 @@ onSnapshot(orderQuery, (snap) => {
         const pLoc = [order.pickup.lat, order.pickup.lng];
         const dLoc = [order.dropoff.lat, order.dropoff.lng];
 
-        const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 })
-            .bindPopup(`
-                <div style="line-height: 1.6;">
-                    <b>📦 ပစ္စည်း: ${order.item}</b><br>
-                    👤 Customer: ${order.customerName}<br>
-                    📞 ဖုန်း: <a href="tel:${oPhone}">${oPhone}</a><br>
-                    💰 Delivery: ${order.deliveryFee} KS<br>
-                    <hr>
-                    <button onclick="cancelOrder('${orderId}')" style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%;">❌ Cancel Order</button>
-                </div>
-            `);
+        const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 }).bindPopup(`
+            <div style="line-height:1.6;">
+                <b>📦 ပစ္စည်း: ${order.item}</b><br>
+                👤 Customer: ${order.customerName}<br>
+                📞 ဖုန်း: <a href="tel:${oPhone}">${oPhone}</a><br>
+                💰 Delivery: ${order.deliveryFee} KS<br>
+                <hr>
+                <button onclick="cancelOrder('${orderId}')" style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%;">❌ Cancel Order</button>
+            </div>
+        `);
 
         const dMarker = L.circleMarker(dLoc, { color: 'red', radius: 8 });
         const line = L.polyline([pLoc, dLoc], { color: 'orange', weight: 2, dashArray: '5, 10' });
@@ -126,7 +130,6 @@ window.cancelOrder = async (orderId) => {
         confirmButtonColor: '#d33',
         confirmButtonText: 'ပယ်ဖျက်မည်'
     });
-
     if (isConfirmed) {
         try {
             await deleteDoc(doc(db, "orders", orderId));
