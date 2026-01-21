@@ -9,26 +9,20 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(adminMap
 
 let markers = { riders: {}, orders: {}, customers: {} };
 let firstLoad = true;
+
+// --- ၂။ Notification အသံဖိုင် ---
 const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// --- ၂။ Rider Monitoring (Collection: riders) ---
-onSnapshot(collection(db, "riders"), (snap) => {
-    // HTML ထဲက rider-count နေရာမှာ ဂဏန်းပြရန်
-    if(document.getElementById('rider-count')) {
-        document.getElementById('rider-count').innerText = snap.size;
-    }
-    
+// --- ၃။ Rider Live Monitoring ---
+onSnapshot(collection(db, "active_riders"), (snap) => {
+    document.getElementById('rider-count').innerText = snap.size;
     snap.docChanges().forEach((change) => {
         const data = change.doc.data();
         const id = change.doc.id;
 
         if (change.type === "added" || change.type === "modified") {
-            // အဟောင်းရှိရင် ဖျက်ပြီး အသစ်ပြန်တင်မယ်
             if (markers.riders[id]) adminMap.removeLayer(markers.riders[id]);
             
-            const rPhone = data.phone || "No Number"; 
-            const rName = data.name || "Rider";
-
             const riderIcon = L.icon({
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/3198/3198336.png',
                 iconSize: [35, 35]
@@ -36,11 +30,10 @@ onSnapshot(collection(db, "riders"), (snap) => {
 
             markers.riders[id] = L.marker([data.lat, data.lng], { icon: riderIcon })
                 .addTo(adminMap)
-                .bindTooltip(`${rName}`, { permanent: true, direction: 'top' }) // နာမည်လေး အမြဲပေါ်နေအောင်
                 .bindPopup(`
                     <div style="text-align:center;">
-                        <b>🚴 Rider: ${rName}</b><br>
-                        📞 <a href="tel:${rPhone}">${rPhone}</a><br>
+                        <b>🚴 Rider: ${data.name || 'Rider'}</b><br>
+                        📞 ဖုန်း: ${data.phone || 'မရှိပါ'}<br>
                         <small>Status: ${data.isOnline ? '🟢 Online' : '🔴 Offline'}</small>
                     </div>
                 `);
@@ -48,9 +41,9 @@ onSnapshot(collection(db, "riders"), (snap) => {
             if (markers.riders[id]) adminMap.removeLayer(markers.riders[id]);
         }
     });
-}, (error) => { console.error("Rider Error:", error); });
+});
 
-// --- ၃။ Customer Monitoring (Collection: customers) ---
+// --- ၄။ Customer Live Monitoring ---
 onSnapshot(collection(db, "customers"), (snap) => {
     if(document.getElementById('customer-count')) {
         document.getElementById('customer-count').innerText = snap.size;
@@ -63,10 +56,8 @@ onSnapshot(collection(db, "customers"), (snap) => {
         if (change.type === "added" || change.type === "modified") {
             if (markers.customers[id]) adminMap.removeLayer(markers.customers[id]);
             
-            const cPhone = data.phone || "No Number";
-
             const customerIcon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png',
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png', 
                 iconSize: [30, 30]
             });
 
@@ -74,68 +65,76 @@ onSnapshot(collection(db, "customers"), (snap) => {
                 .addTo(adminMap)
                 .bindPopup(`
                     <div style="text-align:center;">
-                        <b>👤 Customer: ${data.name || 'User'}</b><br>
-                        📞 <a href="tel:${cPhone}">${cPhone}</a>
+                        <b>👤 Customer: ${data.name || 'အမည်မသိ'}</b><br>
+                        📞 ဖုန်း: ${data.phone || 'မရှိပါ'}
                     </div>
                 `);
         } else if (change.type === "removed") {
             if (markers.customers[id]) adminMap.removeLayer(markers.customers[id]);
         }
     });
-}, (error) => { console.error("Customer Error:", error); });
+});
 
-// --- ၄။ Order Monitoring ---
+// --- ၅။ Order Monitoring & Cancellation ---
 const orderQuery = query(collection(db, "orders"), where("status", "!=", "completed"));
 onSnapshot(orderQuery, (snap) => {
     document.getElementById('order-count').innerText = snap.size;
+
     if (!firstLoad && snap.docChanges().some(c => c.type === "added")) {
         alertSound.play();
+        Swal.fire({
+            title: '🔔 Order အသစ်တက်လာပါပြီ!',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            icon: 'info'
+        });
     }
     firstLoad = false;
 
-    // Order Marker အဟောင်းများရှင်းရန်
     Object.values(markers.orders).forEach(m => adminMap.removeLayer(m));
     markers.orders = {};
 
     snap.forEach((orderDoc) => {
         const order = orderDoc.data();
-        const orderId = orderDoc.id;
-        const oPhone = order.customerPhone || order.phone || "No Number";
+        const id = orderDoc.id;
         const pLoc = [order.pickup.lat, order.pickup.lng];
         const dLoc = [order.dropoff.lat, order.dropoff.lng];
 
         const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 }).bindPopup(`
-            <div style="line-height:1.6;">
-                <b>📦 ပစ္စည်း: ${order.item}</b><br>
-                👤 Customer: ${order.customerName}<br>
-                📞 ဖုန်း: <a href="tel:${oPhone}">${oPhone}</a><br>
-                💰 Delivery: ${order.deliveryFee} KS<br>
-                <hr>
-                <button onclick="cancelOrder('${orderId}')" style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%;">❌ Cancel Order</button>
-            </div>
+            <b>📦 ပစ္စည်း: ${order.item}</b><br>
+            👤 Customer: ${order.customerName}<br>
+            📞 ဖုန်း: ${order.customerPhone || 'မရှိပါ'}<br>
+            💰 Delivery: ${order.deliveryFee} KS<br><br>
+            <button onclick="cancelOrder('${id}')" style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%;">❌ Cancel Order</button>
         `);
 
         const dMarker = L.circleMarker(dLoc, { color: 'red', radius: 8 });
         const line = L.polyline([pLoc, dLoc], { color: 'orange', weight: 2, dashArray: '5, 10' });
-        markers.orders[orderId] = L.layerGroup([pMarker, dMarker, line]).addTo(adminMap);
+
+        markers.orders[id] = L.layerGroup([pMarker, dMarker, line]).addTo(adminMap);
     });
 });
 
-// --- ၅။ Global Cancel Function ---
+// --- ၆။ Global Cancel Function ---
 window.cancelOrder = async (orderId) => {
     const { isConfirmed } = await Swal.fire({
         title: 'အော်ဒါကို ပယ်ဖျက်မှာလား?',
+        text: "ဤလုပ်ဆောင်ချက်ကို ပြန်ပြင်၍မရပါ!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
-        confirmButtonText: 'ပယ်ဖျက်မည်'
+        confirmButtonText: 'ပယ်ဖျက်မည်',
+        cancelButtonText: 'မလုပ်တော့ပါ'
     });
+
     if (isConfirmed) {
         try {
             await deleteDoc(doc(db, "orders", orderId));
             Swal.fire('Deleted!', 'အော်ဒါကို ပယ်ဖျက်ပြီးပါပြီ။', 'success');
         } catch (error) {
-            Swal.fire('Error', error.message, 'error');
+            Swal.fire('Error', 'ပယ်ဖျက်၍မရပါ- ' + error.message, 'error');
         }
     }
 };
