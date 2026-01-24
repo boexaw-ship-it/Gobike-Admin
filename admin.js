@@ -7,146 +7,152 @@ import {
 const adminMap = L.map('admin-map').setView([16.8661, 96.1951], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(adminMap);
 
-// Marker များကို စုစည်းသိမ်းဆည်းရန် Layer Groups
-const ridersLayerGroup = L.layerGroup().addTo(adminMap);
-const customersLayerGroup = L.layerGroup().addTo(adminMap);
-const ordersLayerGroup = L.layerGroup().addTo(adminMap);
+// GPS Live ဖြစ်ဖို့ Marker တွေကို ID အလိုက် သိမ်းထားမယ့် Object များ
+let riderMarkers = {};
+let customerMarkers = {};
+let orderLayers = {}; // Order တစ်ခုချင်းစီရဲ့ (P, D, Line) ကို သိမ်းရန်
 
 let firstLoad = true;
-
-// --- ၂။ Notification အသံဖိုင် ---
 const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// --- ၃။ Rider Live Monitoring ---
+// --- ၂။ Rider Live Monitoring (GPS Live ပြင်ဆင်မှု) ---
 onSnapshot(collection(db, "active_riders"), (snap) => {
     const riderCountElement = document.getElementById('rider-count');
     if (riderCountElement) riderCountElement.innerText = snap.size;
 
-    ridersLayerGroup.clearLayers(); // အဟောင်းများရှင်းထုတ်ခြင်း
+    snap.docChanges().forEach((change) => {
+        const data = change.doc.data();
+        const id = change.doc.id;
 
-    snap.forEach((riderDoc) => {
-        const data = riderDoc.data();
-        if (data.lat && data.lng) {
-            const riderIcon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/3198/3198336.png',
-                iconSize: [35, 35]
-            });
-
-            L.marker([data.lat, data.lng], { icon: riderIcon })
-                .addTo(ridersLayerGroup)
-                .bindPopup(`
-                    <div style="text-align:center;">
-                        <b>🚴 Rider: ${data.name || 'Rider'}</b><br>
-                        📞 Phone: ${data.phone || 'N/A'}<br>
-                        <span style="color: ${data.isOnline !== false ? '#2ecc71' : '#e74c3c'}">
-                            ● ${data.isOnline !== false ? 'Online' : 'Offline'}
-                        </span>
-                    </div>
-                `);
+        if (change.type === "added" || change.type === "modified") {
+            if (data.lat && data.lng) {
+                if (riderMarkers[id]) {
+                    // ✅ Marker ရှိပြီးသားဆိုလျှင် နေရာ (GPS) ကိုပဲ ရွှေ့မည်
+                    riderMarkers[id].setLatLng([data.lat, data.lng]);
+                } else {
+                    // Marker အသစ်ဆွဲမည်
+                    const riderIcon = L.icon({
+                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/3198/3198336.png',
+                        iconSize: [35, 35]
+                    });
+                    riderMarkers[id] = L.marker([data.lat, data.lng], { icon: riderIcon })
+                        .addTo(adminMap)
+                        .bindPopup(`<b>🚴 Rider: ${data.name || 'Rider'}</b>`);
+                }
+            }
+        }
+        if (change.type === "removed") {
+            if (riderMarkers[id]) {
+                adminMap.removeLayer(riderMarkers[id]);
+                delete riderMarkers[id];
+            }
         }
     });
 });
 
-// --- ၄။ Customer Live Monitoring ---
+// --- ၃။ Customer Live Monitoring ---
 onSnapshot(collection(db, "customers"), (snap) => {
     const customerCountElement = document.getElementById('customer-count');
     if(customerCountElement) customerCountElement.innerText = snap.size;
     
-    customersLayerGroup.clearLayers(); // အဟောင်းများရှင်းထုတ်ခြင်း
+    snap.docChanges().forEach((change) => {
+        const data = change.doc.data();
+        const id = change.doc.id;
 
-    snap.forEach((custDoc) => {
-        const data = custDoc.data();
-        if (data.lat && data.lng) {
-            const customerIcon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png', 
-                iconSize: [30, 30]
-            });
-
-            L.marker([data.lat, data.lng], { icon: customerIcon })
-                .addTo(customersLayerGroup)
-                .bindPopup(`<b>👤 Customer: ${data.name || 'User'}</b><br>📞 ${data.phone || 'N/A'}`);
+        if (change.type === "added" || change.type === "modified") {
+            if (data.lat && data.lng) {
+                if (customerMarkers[id]) {
+                    customerMarkers[id].setLatLng([data.lat, data.lng]);
+                } else {
+                    const customerIcon = L.icon({
+                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png', 
+                        iconSize: [30, 30]
+                    });
+                    customerMarkers[id] = L.marker([data.lat, data.lng], { icon: customerIcon })
+                        .addTo(adminMap)
+                        .bindPopup(`<b>👤 Customer: ${data.name || 'User'}</b>`);
+                }
+            }
+        }
+        if (change.type === "removed") {
+            if (customerMarkers[id]) {
+                adminMap.removeLayer(customerMarkers[id]);
+                delete customerMarkers[id];
+            }
         }
     });
 });
 
-// --- ၅။ Order Monitoring & Cancellation ---
+// --- ၄။ Order Monitoring & Cancellation ---
 const orderQuery = query(collection(db, "orders"), where("status", "!=", "completed"));
 
 onSnapshot(orderQuery, (snap) => {
     const orderCountElement = document.getElementById('order-count');
     if (orderCountElement) orderCountElement.innerText = snap.size;
 
-    // အော်ဒါအသစ်တက်လာလျှင် Alert ပေးခြင်း
     if (!firstLoad && snap.docChanges().some(c => c.type === "added")) {
-        alertSound.play().catch(e => console.log("Audio block: Tap map first"));
-        Swal.fire({
-            title: '🔔 Order အသစ်တက်လာပါပြီ!',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000,
-            icon: 'info'
-        });
+        alertSound.play().catch(e => console.log("Sound error:", e));
     }
     firstLoad = false;
 
-    // ✅ အော်ဒါ Marker ဟောင်းများအားလုံးကို အမြဲရှင်းထုတ်ခြင်း
-    ordersLayerGroup.clearLayers();
+    snap.docChanges().forEach((change) => {
+        const order = change.doc.data();
+        const id = change.doc.id;
 
-    snap.forEach((orderDoc) => {
-        const order = orderDoc.data();
-        const id = orderDoc.id;
-        
-        if (order.pickup?.lat && order.dropoff?.lat) {
-            const pLoc = [order.pickup.lat, order.pickup.lng];
-            const dLoc = [order.dropoff.lat, order.dropoff.lng];
+        if (change.type === "added" || change.type === "modified") {
+            // အဟောင်းရှိရင် ရှင်းထုတ်ပြီး အသစ်ပြန်ဆွဲမည် (Status ပြောင်းနိုင်သောကြောင့်)
+            if (orderLayers[id]) adminMap.removeLayer(orderLayers[id]);
 
-            const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 }).bindPopup(`
-                <div style="min-width:150px; color:#000;">
-                    <b>📦 Item: ${order.item}</b><br>
-                    👤 Name: ${order.customerName || 'N/A'}<br>
-                    💰 Fee: ${order.deliveryFee || 0} KS<br>
-                    📍 Status: ${order.status || 'pending'}<br><br>
-                    <button onclick="window.cancelOrder('${id}')" 
-                        style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%; font-weight:bold;">
-                        ❌ Cancel Order
-                    </button>
-                </div>
-            `);
+            if (order.pickup?.lat && order.dropoff?.lat) {
+                const pLoc = [order.pickup.lat, order.pickup.lng];
+                const dLoc = [order.dropoff.lat, order.dropoff.lng];
 
-            const dMarker = L.circleMarker(dLoc, { color: 'red', radius: 8 });
-            const line = L.polyline([pLoc, dLoc], { color: 'orange', weight: 2, dashArray: '5, 10' });
+                const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 }).bindPopup(`
+                    <div style="min-width:150px; color:#000;">
+                        <b>📦 Item: ${order.item}</b><br>
+                        💰 Fee: ${order.deliveryFee || 0} KS<br>
+                        📍 Status: ${order.status}<br><br>
+                        <button onclick="window.cancelOrder('${id}')" 
+                            style="background:#ff4757; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer; width:100%; font-weight:bold;">
+                            ❌ Cancel Order
+                        </button>
+                    </div>
+                `);
 
-            // Layer တစ်ခုချင်းစီကို Group ထဲထည့်ပြီးမှ Map ပေါ်တင်ခြင်း
-            pMarker.addTo(ordersLayerGroup);
-            dMarker.addTo(ordersLayerGroup);
-            line.addTo(ordersLayerGroup);
+                const dMarker = L.circleMarker(dLoc, { color: 'red', radius: 8 });
+                const line = L.polyline([pLoc, dLoc], { color: 'orange', weight: 2, dashArray: '5, 10' });
+
+                orderLayers[id] = L.layerGroup([pMarker, dMarker, line]).addTo(adminMap);
+            }
+        }
+        if (change.type === "removed") {
+            if (orderLayers[id]) {
+                adminMap.removeLayer(orderLayers[id]);
+                delete orderLayers[id];
+            }
         }
     });
 });
 
-// --- ၆။ Global Cancel Function ---
-window.cancelOrder = async (orderId) => {
-    const { isConfirmed } = await Swal.fire({
-        title: 'အော်ဒါကို ပယ်ဖျက်မှာလား?',
-        text: "ဤအော်ဒါကို Database ထဲမှ လုံးဝ ဖျက်ထုတ်ပါမည်။",
+// --- ၅။ Global Cancel Function (Window Object တွင် တိုက်ရိုက်ချိတ်ခြင်း) ---
+window.cancelOrder = async (id) => {
+    const result = await Swal.fire({
+        title: 'သေချာပါသလား?',
+        text: "ဤအော်ဒါကို Database ထဲမှ ဖျက်ပစ်ပါမည်။",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
-        confirmButtonText: 'ပယ်ဖျက်မည်',
-        cancelButtonText: 'မလုပ်တော့ပါ',
-        background: '#fff',
-        color: '#000'
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'ဖျက်မည်',
+        cancelButtonText: 'မဖျက်တော့ပါ'
     });
 
-    if (isConfirmed) {
+    if (result.isConfirmed) {
         try {
-            await deleteDoc(doc(db, "orders", orderId));
-            Swal.fire('Deleted!', 'အော်ဒါကို ပယ်ဖျက်ပြီးပါပြီ။', 'success');
+            await deleteDoc(doc(db, "orders", id));
+            Swal.fire('အောင်မြင်ပါသည်!', 'အော်ဒါကို ဖျက်လိုက်ပါပြီ။', 'success');
         } catch (error) {
-            console.error("Delete Error:", error);
-            Swal.fire('Error', 'ပယ်ဖျက်၍မရပါ- ' + error.message, 'error');
+            Swal.fire('မှားယွင်းမှု!', error.message, 'error');
         }
     }
 };
-
