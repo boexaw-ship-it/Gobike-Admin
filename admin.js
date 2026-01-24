@@ -1,6 +1,6 @@
 import { db } from './firebase-config.js';
 import { 
-    collection, onSnapshot, query, where, doc, deleteDoc 
+    collection, onSnapshot, query, doc, deleteDoc 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const adminMap = L.map('admin-map', { zoomControl: false }).setView([16.8661, 96.1951], 12);
@@ -8,9 +8,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(adminMap
 
 let riderMarkers = {};
 let orderLayers = {}; 
-let firstLoad = true;
 
-// --- ၁။ Global Cancel Function (HTML ကနေ ခေါ်လို့ရအောင် window ထဲထည့်ခြင်း) ---
+// --- ၁။ Global Cancel Function ---
 window.cancelOrder = async (id) => {
     const result = await Swal.fire({
         title: 'Order ကို ဖျက်မှာလား?',
@@ -30,7 +29,7 @@ window.cancelOrder = async (id) => {
     }
 };
 
-// --- ၂။ Rider Monitoring (Live GPS + Online/Offline Status) ---
+// --- ၂။ Rider Monitoring (Live GPS) ---
 onSnapshot(collection(db, "active_riders"), (snap) => {
     document.getElementById('rider-count').innerText = snap.size;
     
@@ -39,14 +38,12 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
         const id = change.doc.id;
 
         if (change.type === "added" || change.type === "modified") {
-            // Online ဖြစ်မဖြစ် စစ်ဆေးခြင်း (isOnline က true/false ဖြစ်ရမယ်)
             const isOnline = data.isOnline === true; 
             const statusColor = isOnline ? '#2ed573' : '#ff4757';
             const statusText = isOnline ? 'Online' : 'Offline';
 
             if (riderMarkers[id]) {
                 riderMarkers[id].setLatLng([data.lat, data.lng]);
-                // Popup content ကိုပါ update လုပ်မယ် (Online/Offline သိရအောင်)
                 riderMarkers[id].setPopupContent(`<b>🚴 ${data.name}</b><br><span style="color:${statusColor}">● ${statusText}</span>`);
             } else {
                 const riderIcon = L.icon({
@@ -64,14 +61,27 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
     });
 });
 
-// --- ၃။ Order Monitoring (With Fixed Cancel Button) ---
-const orderQuery = query(collection(db, "orders"), where("status", "!=", "completed"));
+// --- ၃။ Order Monitoring (Logic မပျက်ဘဲ Index Error ကင်းဝေးစေသောနည်း) ---
+// index error မတက်စေရန် ရိုးရိုး query ကိုပဲ သုံးပါမည်
+const orderQuery = query(collection(db, "orders"));
+
 onSnapshot(orderQuery, (snap) => {
-    document.getElementById('order-count').innerText = snap.size;
+    // completed မဟုတ်သော အော်ဒါများကိုသာ စစ်ထုတ်ပြီး အရေအတွက်ပြမည်
+    const activeDocs = snap.docs.filter(d => d.data().status !== "completed");
+    document.getElementById('order-count').innerText = activeDocs.length;
     
     snap.docChanges().forEach((change) => {
         const order = change.doc.data();
         const id = change.doc.id;
+
+        // အကယ်၍ အော်ဒါ status က completed ဖြစ်သွားလျှင် မြေပုံပေါ်က ဖယ်ထုတ်မည်
+        if (order.status === "completed") {
+            if (orderLayers[id]) {
+                adminMap.removeLayer(orderLayers[id]);
+                delete orderLayers[id];
+            }
+            return;
+        }
 
         if (change.type === "added" || change.type === "modified") {
             if (orderLayers[id]) adminMap.removeLayer(orderLayers[id]);
@@ -95,9 +105,9 @@ onSnapshot(orderQuery, (snap) => {
                 orderLayers[id] = L.layerGroup([pMarker, dMarker, line]).addTo(adminMap);
             }
         }
+
         if (change.type === "removed") {
             if (orderLayers[id]) { adminMap.removeLayer(orderLayers[id]); delete orderLayers[id]; }
         }
     });
 });
-
