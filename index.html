@@ -56,14 +56,15 @@
             padding: 10px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-            min-width: 125px; /* Customer ပါလာလို့ နည်းနည်းပြန်ချဲ့ထားသည် */
+            min-width: 135px;
         }
         .stat-item {
-            font-size: 0.72rem;
-            margin: 4px 0;
+            font-size: 0.75rem;
+            margin: 6px 0;
             font-weight: bold;
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
 
         .legend {
@@ -71,23 +72,23 @@
             bottom: 20px;
             left: 10px;
             z-index: 1000;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px;
             border-radius: 8px;
-            font-size: 0.62rem;
+            font-size: 0.65rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             max-width: 160px;
         }
         .legend-item { 
             display: flex; 
             align-items: center; 
-            margin-bottom: 4px; 
+            margin-bottom: 6px; 
         }
         .dot { 
-            height: 8px; 
-            width: 8px; 
+            height: 10px; 
+            width: 10px; 
             border-radius: 50%; 
-            margin-right: 6px; 
+            margin-right: 8px; 
             display: inline-block;
         }
 
@@ -108,7 +109,7 @@
 <body>
 
     <div class="header">
-        <h2 style="color: #4e342e;">🚴 GoBike Admin Panel</h2>
+        <h2>🚴 GoBike Admin Panel</h2>
         <p>Live Monitoring System</p>
     </div>
 
@@ -117,27 +118,28 @@
     <div class="stats-panel">
         <div class="stat-item">
             <span>🚴 Riders:</span>
-            <span id="rider-count" style="color: #2ed573; margin-left: 8px;">0</span>
+            <span id="rider-count" style="color: #2ed573;">0</span>
         </div>
         <div class="stat-item">
             <span>👤 Users:</span>
-            <span id="customer-count" style="color: #ffa502; margin-left: 8px;">0</span>
-        </div>
+            <span id="user-count" style="color: #ffa502;">0</span> </div>
         <div class="stat-item">
             <span>📦 Orders:</span>
-            <span id="order-count" style="color: #1e90ff; margin-left: 8px;">0</span>
+            <span id="order-count" style="color: #1e90ff;">0</span>
         </div>
     </div>
 
     <div class="legend">
-        <div class="legend-item"><span class="dot" style="background: blue;"></span> Pickup</div>
-        <div class="legend-item"><span class="dot" style="background: red;"></span> Dropoff</div>
-        <div class="legend-item"><span class="dot" style="background: orange; border-radius: 0; height: 2px; width: 10px;"></span> Route</div>
+        <div class="legend-item"><span class="dot" style="background: blue;"></span> Pickup Point</div>
+        <div class="legend-item"><span class="dot" style="background: red;"></span> Drop-off Point</div>
         <div class="legend-item">
-            <img src="https://cdn-icons-png.flaticon.com/512/3198/3198336.png" width="10" style="margin-right: 6px;"> Rider
+            <span style="border-bottom: 2px dashed orange; width: 15px; height: 1px; margin-right: 8px;"></span> Route
         </div>
         <div class="legend-item">
-            <img src="https://cdn-icons-png.flaticon.com/512/4140/4140048.png" width="10" style="margin-right: 6px;"> Customer
+            <img src="https://cdn-icons-png.flaticon.com/512/3198/3198336.png" width="12" style="margin-right: 8px;"> Rider (Live)
+        </div>
+        <div class="legend-item">
+            <img src="https://cdn-icons-png.flaticon.com/512/3177/3177440.png" width="12" style="margin-right: 8px;"> Customer
         </div>
     </div>
 
