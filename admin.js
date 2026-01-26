@@ -30,7 +30,7 @@ window.cancelOrder = async (id) => {
     }
 };
 
-// --- ၃။ Riders Monitoring (active_riders collection) ---
+// --- ၃။ Riders Monitoring (Online/Offline Status ပါဝင်သည်) ---
 onSnapshot(collection(db, "active_riders"), (snap) => {
     const riderCountEl = document.getElementById('rider-count');
     if (riderCountEl) riderCountEl.innerText = snap.size;
@@ -40,16 +40,34 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
         const id = change.doc.id;
 
         if (change.type === "added" || change.type === "modified") {
+            // Online/Offline အရောင်သတ်မှတ်ခြင်း
+            const isOnline = data.isOnline === true;
+            const statusColor = isOnline ? '#2ed573' : '#ff4757';
+            const statusText = isOnline ? 'Online' : 'Offline';
+
             if (riderMarkers[id]) {
+                // ရှိပြီးသား Marker ကို နေရာရွှေ့ပြီး Popup Content ကို Update လုပ်မည်
                 riderMarkers[id].setLatLng([data.lat, data.lng]);
+                riderMarkers[id].setPopupContent(`
+                    <div style="text-align:center;">
+                        <b>🚴 Rider: ${data.name || 'Unknown'}</b><br>
+                        <span style="color:${statusColor}; font-weight:bold;">● ${statusText}</span>
+                    </div>
+                `);
             } else {
+                // Marker အသစ်ဆောက်မည်
                 const riderIcon = L.icon({
                     iconUrl: 'https://cdn-icons-png.flaticon.com/512/3198/3198336.png',
                     iconSize: [35, 35]
                 });
                 riderMarkers[id] = L.marker([data.lat, data.lng], { icon: riderIcon })
                     .addTo(adminMap)
-                    .bindPopup(`<b>🚴 Rider: ${data.name || 'Unknown'}</b>`);
+                    .bindPopup(`
+                        <div style="text-align:center;">
+                            <b>🚴 Rider: ${data.name || 'Unknown'}</b><br>
+                            <span style="color:${statusColor}; font-weight:bold;">● ${statusText}</span>
+                        </div>
+                    `);
             }
         }
         if (change.type === "removed") {
@@ -58,15 +76,13 @@ onSnapshot(collection(db, "active_riders"), (snap) => {
     });
 });
 
-// --- ၄။ Customers Monitoring (Users: အရေအတွက်အတွက်) ---
+// --- ၄။ Customers Monitoring (User Count) ---
 onSnapshot(collection(db, "customers"), (snap) => {
-    const userCountEl = document.getElementById('user-count'); // HTML ထဲက ID နှင့် ကိုက်ညီအောင် ပြင်ထားသည်
-    if (userCountEl) {
-        userCountEl.innerText = snap.size;
-    }
+    const userCountEl = document.getElementById('user-count');
+    if (userCountEl) userCountEl.innerText = snap.size;
 });
 
-// --- ၅။ Orders Monitoring (orders collection + Map Markers) ---
+// --- ၅။ Orders Monitoring (Pickup/Dropoff + Route) ---
 onSnapshot(collection(db, "orders"), (snap) => {
     const activeOrders = snap.docs.filter(d => d.data().status !== "completed");
     const orderCountEl = document.getElementById('order-count');
@@ -76,7 +92,6 @@ onSnapshot(collection(db, "orders"), (snap) => {
         const order = change.doc.data();
         const id = change.doc.id;
 
-        // Status ပြီးသွားရင် မြေပုံပေါ်ကဖယ်မယ်
         if (order.status === "completed") {
             if (orderLayers[id]) { adminMap.removeLayer(orderLayers[id]); delete orderLayers[id]; }
             return;
@@ -89,7 +104,6 @@ onSnapshot(collection(db, "orders"), (snap) => {
                 const pLoc = [order.pickup.lat, order.pickup.lng];
                 const dLoc = [order.dropoff.lat, order.dropoff.lng];
 
-                // Pickup Marker (အပြာစက်) + Cancel Button
                 const pMarker = L.circleMarker(pLoc, { color: 'blue', radius: 8 }).bindPopup(`
                     <div style="text-align:center;">
                         <b>📦 ${order.item || 'Parcel'}</b><br>
@@ -100,10 +114,7 @@ onSnapshot(collection(db, "orders"), (snap) => {
                     </div>
                 `);
 
-                // Dropoff Marker (အနီစက်)
                 const dMarker = L.circleMarker(dLoc, { color: 'red', radius: 8 });
-
-                // လမ်းကြောင်းမျဉ်း (Route)
                 const line = L.polyline([pLoc, dLoc], { color: 'orange', weight: 2, dashArray: '5, 10' });
 
                 orderLayers[id] = L.layerGroup([pMarker, dMarker, line]).addTo(adminMap);
@@ -114,4 +125,3 @@ onSnapshot(collection(db, "orders"), (snap) => {
         }
     });
 });
-
